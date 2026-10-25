@@ -25,6 +25,21 @@ function download(data) {
   setTimeout(()=>URL.revokeObjectURL(url),10000);
 }
 
+
+function appendFormatted(target, input) {
+  const pattern = /(\*\*[^*\n]+\*\*|__[^_\n]+__|`[^`\n]+`|\*[^*\n]+\*|_[^_\n]+_)/g;
+  let offset = 0;
+  for (const match of input.matchAll(pattern)) {
+    if (match.index > offset) target.append(document.createTextNode(input.slice(offset, match.index)));
+    const value = match[0], strong = value.startsWith('**') || value.startsWith('__');
+    const el = document.createElement(strong ? 'strong' : value.startsWith('`') ? 'code' : 'em');
+    el.textContent = value.slice(strong ? 2 : 1, strong ? -2 : -1);
+    target.append(el);
+    offset = match.index + value.length;
+  }
+  if (offset < input.length) target.append(document.createTextNode(input.slice(offset)));
+}
+
 function renderAssistant(content, raw) {
   content.replaceChildren();
   const lines = raw.split('\n');
@@ -32,7 +47,7 @@ function renderAssistant(content, raw) {
   const flush = () => {
     if (!paragraph.length) return;
     const p = document.createElement('p');
-    p.textContent = paragraph.join('\n');
+    paragraph.forEach((line, i) => { if (i) p.append(document.createElement('br')); appendFormatted(p, line); });
     content.append(p);
     paragraph = [];
   };
@@ -66,11 +81,30 @@ function renderAssistant(content, raw) {
         continue;
       }
     }
-    const heading = /^(#{1,3})\s+(.+)$/.exec(line);
+    if (/^\s*(---+|\*\*\*+|___+)\s*$/.test(line)) {
+      flush();
+      content.append(document.createElement('hr'));
+      continue;
+    }
+    const bullet = /^\s*([-*+]|\d+[.)])\s+(.+)$/.exec(line);
+    if (bullet) {
+      flush();
+      const tag = /^\d/.test(bullet[1]) ? 'ol' : 'ul';
+      let list = content.lastElementChild;
+      if (!list || list.tagName.toLowerCase() !== tag) {
+        list = document.createElement(tag);
+        content.append(list);
+      }
+      const item = document.createElement('li');
+      appendFormatted(item, bullet[2]);
+      list.append(item);
+      continue;
+    }
+    const heading = /^\s*(#{1,6})\s+(.+)$/.exec(line);
     if (heading) {
       flush();
       const h = document.createElement('h' + heading[1].length);
-      h.textContent = heading[2];
+      appendFormatted(h, heading[2]);
       content.append(h);
     } else if (!line.trim()) {
       flush();
