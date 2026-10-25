@@ -41,6 +41,30 @@ function appendFormatted(target, input) {
   if (offset < input.length) target.append(document.createTextNode(input.slice(offset)));
 }
 
+function streamingDisplay(raw) {
+  // During generation, withhold unfinished syntax at the tail so raw Markdown
+  // markers do not flash before the model sends their closing delimiter.
+  const endsWithNewline = raw.endsWith('\n');
+  const pos = raw.lastIndexOf('\n');
+  if (endsWithNewline || pos < 0) {
+    if (endsWithNewline) return raw;
+    return previewLine(raw);
+  }
+  return raw.slice(0, pos + 1) + previewLine(raw.slice(pos + 1));
+}
+
+function previewLine(line) {
+  // A code fence/heading/list marker is not meaningful until its line is complete.
+  if (/^\s*(?:`{3}|#{1,6}\s*$|[-*+]\s*$)/.test(line)) return '';
+  return line
+    .replace(/^\s*#{1,6}\s+/, '')
+    .replace(/^\s*(?:[-*+] |\d+[.)] )/, '')
+    .replace(/\*\*/g, '')
+    .replace(/`/g, '')
+    .replace(/__(?=\S)/g, '')
+    .replace(/&#x20;|&#32;|&nbsp;/gi, ' ');
+}
+
 function renderAssistant(content, raw) {
   content.replaceChildren();
   const lines = raw.replace(/&#x20;|&#32;|&nbsp;/gi, ' ').split('\n');
@@ -170,7 +194,7 @@ $('composer').onsubmit=async event=>{
     const reader=response.body.getReader();const decoder=new TextDecoder();let pending='',reply='';
     while(true){const chunk=await reader.read();pending+=decoder.decode(chunk.value||new Uint8Array(),{stream:!chunk.done});
       const lines=pending.split('\n');pending=lines.pop();
-      for(const line of lines){if(!line)continue;const part=JSON.parse(line);if(part.conversationId){conversationId=part.conversationId;accepted=true;}if(part.delta){reply+=part.delta;answer.content.dataset.raw=reply;renderAssistant(answer.content,reply);$('messages').scrollTop=$('messages').scrollHeight;}if(part.error)throw Error(part.error);if(part.done)finished=true;}
+      for(const line of lines){if(!line)continue;const part=JSON.parse(line);if(part.conversationId){conversationId=part.conversationId;accepted=true;}if(part.delta){reply+=part.delta;answer.content.dataset.raw=reply;renderAssistant(answer.content,streamingDisplay(reply));$('messages').scrollTop=$('messages').scrollHeight;}if(part.error)throw Error(part.error);if(part.done)finished=true;}
       if(chunk.done)break;
     }
     if(!finished)throw Error('Response interrupted. You can resend your question.');
