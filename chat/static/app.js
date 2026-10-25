@@ -42,27 +42,11 @@ function appendFormatted(target, input) {
 }
 
 function streamingDisplay(raw) {
-  // During generation, withhold unfinished syntax at the tail so raw Markdown
-  // markers do not flash before the model sends their closing delimiter.
-  const endsWithNewline = raw.endsWith('\n');
-  const pos = raw.lastIndexOf('\n');
-  if (endsWithNewline || pos < 0) {
-    if (endsWithNewline) return raw;
-    return previewLine(raw);
-  }
-  return raw.slice(0, pos + 1) + previewLine(raw.slice(pos + 1));
-}
-
-function previewLine(line) {
-  // A code fence/heading/list marker is not meaningful until its line is complete.
-  if (/^\s*(?:`{3}|#{1,6}\s*$|[-*+]\s*$)/.test(line)) return '';
-  return line
-    .replace(/^\s*#{1,6}\s+/, '')
-    .replace(/^\s*(?:[-*+] |\d+[.)] )/, '')
-    .replace(/\*\*/g, '')
-    .replace(/`/g, '')
-    .replace(/__(?=\S)/g, '')
-    .replace(/&#x20;|&#32;|&nbsp;/gi, ' ');
+  // Display only complete lines while tokens are arriving. An unfinished line
+  // can contain half of **bold**, a heading, or a code delimiter; rendering it
+  // prematurely causes visible Markdown symbols and layout changes.
+  const lastNewline = raw.lastIndexOf('\n');
+  return lastNewline < 0 ? '' : raw.slice(0, lastNewline + 1);
 }
 
 function renderAssistant(content, raw) {
