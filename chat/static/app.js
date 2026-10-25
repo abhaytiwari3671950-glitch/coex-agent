@@ -42,11 +42,22 @@ function appendFormatted(target, input) {
 }
 
 function streamingDisplay(raw) {
-  // Display only complete lines while tokens are arriving. An unfinished line
-  // can contain half of **bold**, a heading, or a code delimiter; rendering it
-  // prematurely causes visible Markdown symbols and layout changes.
-  const lastNewline = raw.lastIndexOf('\n');
-  return lastNewline < 0 ? '' : raw.slice(0, lastNewline + 1);
+  // Only reveal complete Markdown blocks while streaming. A newline alone
+  // does not close a heading, bold span, or fenced code block reliably.
+  // Waiting for a blank line avoids transient raw markers and reformatting.
+  const normalized = raw.replace(/\r\n/g, '\n');
+  let boundary = normalized.lastIndexOf('\n\n');
+  if (boundary < 0) return '';
+  let complete = normalized.slice(0, boundary + 2);
+  // Do not publish half of an open fenced code block.
+  const fences = complete.match(/^\s*`{3}/gm) || [];
+  if (fences.length % 2) {
+    const opening = complete.lastIndexOf('\n```');
+    const first = complete.startsWith('```') ? 0 : -1;
+    const cut = Math.max(opening < 0 ? -1 : opening + 1, first);
+    complete = cut >= 0 ? complete.slice(0, cut) : '';
+  }
+  return complete;
 }
 
 function renderAssistant(content, raw) {
