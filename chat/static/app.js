@@ -33,7 +33,8 @@ function appendFormatted(target, input) {
     if (match.index > offset) target.append(document.createTextNode(input.slice(offset, match.index)));
     const value = match[0], strong = value.startsWith('**') || value.startsWith('__');
     const el = document.createElement(strong ? 'strong' : value.startsWith('`') ? 'code' : 'em');
-    el.textContent = value.slice(strong ? 2 : 1, strong ? -2 : -1);
+    if (strong) appendFormatted(el, value.slice(2, -2));
+    else el.textContent = value.slice(1, -1);
     target.append(el);
     offset = match.index + value.length;
   }
@@ -42,7 +43,7 @@ function appendFormatted(target, input) {
 
 function renderAssistant(content, raw) {
   content.replaceChildren();
-  const lines = raw.split('\n');
+  const lines = raw.replace(/&#x20;|&#32;|&nbsp;/gi, ' ').split('\n');
   let paragraph = [];
   const flush = () => {
     if (!paragraph.length) return;
