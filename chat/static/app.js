@@ -33,7 +33,8 @@ function appendFormatted(target, input) {
     if (match.index > offset) target.append(document.createTextNode(input.slice(offset, match.index)));
     const value = match[0], strong = value.startsWith('**') || value.startsWith('__');
     const el = document.createElement(strong ? 'strong' : value.startsWith('`') ? 'code' : 'em');
-    el.textContent = value.slice(strong ? 2 : 1, strong ? -2 : -1);
+    if (strong) appendFormatted(el, value.slice(2, -2));
+    else el.textContent = value.slice(1, -1);
     target.append(el);
     offset = match.index + value.length;
   }
@@ -42,7 +43,7 @@ function appendFormatted(target, input) {
 
 function renderAssistant(content, raw) {
   content.replaceChildren();
-  const lines = raw.split('\n');
+  const lines = raw.replace(/&#x20;|&#32;|&nbsp;/gi, ' ').split('\n');
   let paragraph = [];
   const flush = () => {
     if (!paragraph.length) return;
@@ -165,16 +166,16 @@ $('composer').onsubmit=async event=>{
   const file=attachment;setBusy(true);controller=new AbortController();let timer=setTimeout(()=>controller.abort(),90000);let answer=null,finished=false,accepted=false;
   try{
     const response=await request('/api/chat',{text,conversationId,attachment:file},controller.signal);
-    message('user',text,file);answer=message('assistant','Thinking…',null,false);$('message').value='';attachment=null;showAttachment();
+    message('user',text,file);answer=message('assistant','Generating formatted response…',null,false);$('message').value='';attachment=null;showAttachment();
     const reader=response.body.getReader();const decoder=new TextDecoder();let pending='',reply='';
     while(true){const chunk=await reader.read();pending+=decoder.decode(chunk.value||new Uint8Array(),{stream:!chunk.done});
       const lines=pending.split('\n');pending=lines.pop();
-      for(const line of lines){if(!line)continue;const part=JSON.parse(line);if(part.conversationId){conversationId=part.conversationId;accepted=true;}if(part.delta){reply+=part.delta;answer.content.dataset.raw=reply;answer.content.textContent=reply;$('messages').scrollTop=$('messages').scrollHeight;}if(part.error)throw Error(part.error);if(part.done)finished=true;}
+      for(const line of lines){if(!line)continue;const part=JSON.parse(line);if(part.conversationId){conversationId=part.conversationId;accepted=true;}if(part.delta){reply+=part.delta;answer.content.dataset.raw=reply;}if(part.error)throw Error(part.error);if(part.done)finished=true;}
       if(chunk.done)break;
     }
     if(!finished)throw Error('Response interrupted. You can resend your question.');
     answer.box.remove();message('assistant',reply);
-  }catch(e){error(e.name==='AbortError'?'Response stopped or timed out. You can resend your question.':e.message);if(answer?.content.textContent==='Thinking…')answer.content.textContent='No response received.';if(!$('message').value)$('message').value=text;}
+  }catch(e){error(e.name==='AbortError'?'Response stopped or timed out. You can resend your question.':e.message);if(answer)answer.content.textContent='Response interrupted. No formatted answer was displayed.';if(!$('message').value)$('message').value=text;}
   finally{clearTimeout(timer);controller=null;setBusy(false);if(accepted)refreshHistory().catch(e=>error(e.message));}
 };
 refreshHistory().catch(e=>error(e.message));
