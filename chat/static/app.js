@@ -24,19 +24,76 @@ function download(data) {
   const link=document.createElement('a'); link.href=url; link.download='coex-response.pdf'; link.click();
   setTimeout(()=>URL.revokeObjectURL(url),10000);
 }
+
+function renderAssistant(content, raw) {
+  content.replaceChildren();
+  const lines = raw.split('\n');
+  let paragraph = [];
+  const flush = () => {
+    if (!paragraph.length) return;
+    const p = document.createElement('p');
+    p.textContent = paragraph.join('\n');
+    content.append(p);
+    paragraph = [];
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const fence = /^\s*```([a-zA-Z0-9_+.#-]*)\s*$/.exec(line);
+    if (fence) {
+      let end = i + 1;
+      while (end < lines.length && !/^\s*```\s*$/.test(lines[end])) end++;
+      if (end < lines.length) {
+        flush();
+        const wrap = document.createElement('div');
+        wrap.className = 'code-block';
+        const bar = document.createElement('div');
+        bar.className = 'code-bar';
+        const language = document.createElement('span');
+        language.textContent = fence[1] || 'Code';
+        const copy = document.createElement('button');
+        copy.type = 'button';
+        copy.textContent = 'Copy code';
+        const codeText = lines.slice(i + 1, end).join('\n');
+        copy.onclick = () => navigator.clipboard.writeText(codeText).catch(() => error('Copy failed.'));
+        bar.append(language, copy);
+        const pre = document.createElement('pre');
+        const code = document.createElement('code');
+        code.textContent = codeText;
+        pre.append(code);
+        wrap.append(bar, pre);
+        content.append(wrap);
+        i = end;
+        continue;
+      }
+    }
+    const heading = /^(#{1,3})\s+(.+)$/.exec(line);
+    if (heading) {
+      flush();
+      const h = document.createElement('h' + heading[1].length);
+      h.textContent = heading[2];
+      content.append(h);
+    } else if (!line.trim()) {
+      flush();
+    } else {
+      paragraph.push(line);
+    }
+  }
+  flush();
+}
+
 function message(role, text, file=null, actions=true) {
   $('welcome')?.remove();
   const box=document.createElement('article'); box.className=`bubble ${role}`;
   if(file){const name=document.createElement('span');name.className='file-name';name.textContent=`Attachment: ${file.name}`;box.append(name);}
-  const content=document.createElement('div');content.className='message-text';content.textContent=text;box.append(content);
+  const content=document.createElement('div');content.className='message-text';content.dataset.raw=text;if(role==='assistant' && actions)renderAssistant(content,text);else content.textContent=text;box.append(content);
   if(actions){
     const buttons=document.createElement('div');buttons.className='actions';
-    const copy=document.createElement('button');copy.textContent='Copy';copy.onclick=()=>navigator.clipboard.writeText(content.textContent).catch(()=>error('Copy failed. Please select and copy the text.'));buttons.append(copy);
+    const copy=document.createElement('button');copy.textContent='Copy';copy.onclick=()=>navigator.clipboard.writeText(content.dataset.raw).catch(()=>error('Copy failed. Please select and copy the text.'));buttons.append(copy);
     const action=document.createElement('button');action.textContent=role==='user'?'Edit & resend':'Download PDF';
     action.onclick=async()=>{if(busy)return;error('');
       if(role==='user'){$('message').value=content.textContent;attachment=file;showAttachment();$('message').focus();error('Edit and send as a new message. The original stays in this chat.');return;}
       action.disabled=true;
-      try{const response=await request('/api/media',{action:'create_pdf',title:'coex response',text:content.textContent});download((await response.json()).data);}catch(e){error(e.message);}finally{action.disabled=false;}
+      try{const response=await request('/api/media',{action:'create_pdf',title:'coex response',text:content.dataset.raw});download((await response.json()).data);}catch(e){error(e.message);}finally{action.disabled=false;}
     };buttons.append(action);box.append(buttons);
   }
   $('messages').append(box);$('messages').scrollTop=$('messages').scrollHeight;
@@ -78,7 +135,7 @@ $('composer').onsubmit=async event=>{
     const reader=response.body.getReader();const decoder=new TextDecoder();let pending='',reply='';
     while(true){const chunk=await reader.read();pending+=decoder.decode(chunk.value||new Uint8Array(),{stream:!chunk.done});
       const lines=pending.split('\n');pending=lines.pop();
-      for(const line of lines){if(!line)continue;const part=JSON.parse(line);if(part.conversationId){conversationId=part.conversationId;accepted=true;}if(part.delta){reply+=part.delta;answer.content.textContent=reply;$('messages').scrollTop=$('messages').scrollHeight;}if(part.error)throw Error(part.error);if(part.done)finished=true;}
+      for(const line of lines){if(!line)continue;const part=JSON.parse(line);if(part.conversationId){conversationId=part.conversationId;accepted=true;}if(part.delta){reply+=part.delta;answer.content.dataset.raw=reply;answer.content.textContent=reply;$('messages').scrollTop=$('messages').scrollHeight;}if(part.error)throw Error(part.error);if(part.done)finished=true;}
       if(chunk.done)break;
     }
     if(!finished)throw Error('Response interrupted. You can resend your question.');
