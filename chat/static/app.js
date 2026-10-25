@@ -41,25 +41,6 @@ function appendFormatted(target, input) {
   if (offset < input.length) target.append(document.createTextNode(input.slice(offset)));
 }
 
-function streamingDisplay(raw) {
-  // Only reveal complete Markdown blocks while streaming. A newline alone
-  // does not close a heading, bold span, or fenced code block reliably.
-  // Waiting for a blank line avoids transient raw markers and reformatting.
-  const normalized = raw.replace(/\r\n/g, '\n');
-  let boundary = normalized.lastIndexOf('\n\n');
-  if (boundary < 0) return '';
-  let complete = normalized.slice(0, boundary + 2);
-  // Do not publish half of an open fenced code block.
-  const fences = complete.match(/^\s*`{3}/gm) || [];
-  if (fences.length % 2) {
-    const opening = complete.lastIndexOf('\n```');
-    const first = complete.startsWith('```') ? 0 : -1;
-    const cut = Math.max(opening < 0 ? -1 : opening + 1, first);
-    complete = cut >= 0 ? complete.slice(0, cut) : '';
-  }
-  return complete;
-}
-
 function renderAssistant(content, raw) {
   content.replaceChildren();
   const lines = raw.replace(/&#x20;|&#32;|&nbsp;/gi, ' ').split('\n');
@@ -185,16 +166,16 @@ $('composer').onsubmit=async event=>{
   const file=attachment;setBusy(true);controller=new AbortController();let timer=setTimeout(()=>controller.abort(),90000);let answer=null,finished=false,accepted=false;
   try{
     const response=await request('/api/chat',{text,conversationId,attachment:file},controller.signal);
-    message('user',text,file);answer=message('assistant','Thinking…',null,false);$('message').value='';attachment=null;showAttachment();
+    message('user',text,file);answer=message('assistant','Generating formatted response…',null,false);$('message').value='';attachment=null;showAttachment();
     const reader=response.body.getReader();const decoder=new TextDecoder();let pending='',reply='';
     while(true){const chunk=await reader.read();pending+=decoder.decode(chunk.value||new Uint8Array(),{stream:!chunk.done});
       const lines=pending.split('\n');pending=lines.pop();
-      for(const line of lines){if(!line)continue;const part=JSON.parse(line);if(part.conversationId){conversationId=part.conversationId;accepted=true;}if(part.delta){reply+=part.delta;answer.content.dataset.raw=reply;renderAssistant(answer.content,streamingDisplay(reply));$('messages').scrollTop=$('messages').scrollHeight;}if(part.error)throw Error(part.error);if(part.done)finished=true;}
+      for(const line of lines){if(!line)continue;const part=JSON.parse(line);if(part.conversationId){conversationId=part.conversationId;accepted=true;}if(part.delta){reply+=part.delta;answer.content.dataset.raw=reply;}if(part.error)throw Error(part.error);if(part.done)finished=true;}
       if(chunk.done)break;
     }
     if(!finished)throw Error('Response interrupted. You can resend your question.');
     answer.box.remove();message('assistant',reply);
-  }catch(e){error(e.name==='AbortError'?'Response stopped or timed out. You can resend your question.':e.message);if(answer?.content.textContent==='Thinking…')answer.content.textContent='No response received.';if(!$('message').value)$('message').value=text;}
+  }catch(e){error(e.name==='AbortError'?'Response stopped or timed out. You can resend your question.':e.message);if(answer)answer.content.textContent='Response interrupted. No formatted answer was displayed.';if(!$('message').value)$('message').value=text;}
   finally{clearTimeout(timer);controller=null;setBusy(false);if(accepted)refreshHistory().catch(e=>error(e.message));}
 };
 refreshHistory().catch(e=>error(e.message));
