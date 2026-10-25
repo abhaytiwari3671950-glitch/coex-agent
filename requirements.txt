@@ -1,3 +1,2 @@
-pypdf>=6.0,<7
-reportlab>=4.4,<5
-Pillow>=11.3,<13
+# Exact dependency versions used in the validated Python build.
+-r requirements.lock
