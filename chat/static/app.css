@@ -9,3 +9,9 @@
 .code-bar button{font-size:11px;padding:4px 9px}
 .code-block pre{overflow-x:auto;padding:14px;margin:0;white-space:pre;tab-size:4}
 .code-block code{font:13px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;color:#e8ecf3}
+
+.bubble.assistant .message-text hr{border:0;border-top:1px solid #454545;margin:20px 0}
+.bubble.assistant .message-text ul,.bubble.assistant .message-text ol{margin:10px 0 16px;padding-left:26px}
+.bubble.assistant .message-text li{margin:5px 0;line-height:1.7}
+.bubble.assistant .message-text strong{font-weight:700}
+.bubble.assistant .message-text :not(pre)>code{background:#30343d;padding:2px 5px;border-radius:5px;font-family:ui-monospace,Consolas,monospace}
