@@ -169,7 +169,7 @@ $('composer').onsubmit=async event=>{
     const reader=response.body.getReader();const decoder=new TextDecoder();let pending='',reply='';
     while(true){const chunk=await reader.read();pending+=decoder.decode(chunk.value||new Uint8Array(),{stream:!chunk.done});
       const lines=pending.split('\n');pending=lines.pop();
-      for(const line of lines){if(!line)continue;const part=JSON.parse(line);if(part.conversationId){conversationId=part.conversationId;accepted=true;}if(part.delta){reply+=part.delta;answer.content.dataset.raw=reply;answer.content.textContent=reply;$('messages').scrollTop=$('messages').scrollHeight;}if(part.error)throw Error(part.error);if(part.done)finished=true;}
+      for(const line of lines){if(!line)continue;const part=JSON.parse(line);if(part.conversationId){conversationId=part.conversationId;accepted=true;}if(part.delta){reply+=part.delta;answer.content.dataset.raw=reply;renderAssistant(answer.content,reply);$('messages').scrollTop=$('messages').scrollHeight;}if(part.error)throw Error(part.error);if(part.done)finished=true;}
       if(chunk.done)break;
     }
     if(!finished)throw Error('Response interrupted. You can resend your question.');
