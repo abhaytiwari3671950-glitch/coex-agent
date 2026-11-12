@@ -26,20 +26,20 @@ def read_study_pdf(upload):
         reader=PdfReader(upload)
         if reader.is_encrypted: raise ValueError('Please upload an unlocked PDF.')
         total=len(reader.pages)
-        if total>500: raise ValueError('Upload a PDF with 500 pages or fewer.')
+        if total>3000: raise ValueError('Upload a PDF with 3,000 pages or fewer.')
         parts=[];used=0;processed=0;truncated=False
         for page in reader.pages:
-            if used>=60000:
+            if used>=3000000:
                 truncated=True;break
             contents=page.get_contents()
             if contents and len(contents.get_data())>4000000:
                 raise ValueError('A PDF page is too complex. Export a simpler PDF.')
             raw=page.extract_text() or ''
-            text=raw[:min(12000,60000-used)]
+            text=raw[:min(20000,3000000-used)]
             truncated=truncated or len(text)<len(raw)
             parts.append(text);used+=len(text);processed+=1
         return {'text':'\n'.join(parts),'pages':total,'pages_read':processed,'truncated':truncated,
-                'notice':('Only part of this PDF fits the 60,000-character analysis limit. Split the PDF into relevant sections for complete coverage.' if truncated else '')}
+                'notice':('Only part of this PDF fits the 3,000,000-character analysis limit. Split the PDF into relevant sections for complete coverage.' if truncated else '')}
     except ValueError:
         raise
     except Exception:

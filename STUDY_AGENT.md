@@ -8,8 +8,8 @@ can trigger a revised draft; missing evidence can trigger a clarification.
 This is a bounded model-directed loop, not a fixed prompt chain.
 
 ## Tools and evidence
-- PDF extraction: existing pypdf path, maximum 100 MiB in the local desktop app, 500 pages, 60,000 extracted
-  characters total and 12,000 per page. Partial extraction is disclosed in the activity log and model state. Scans require a readable replacement; there is no OCR.
+- PDF extraction: existing pypdf path, maximum 100 MiB in the local desktop app, 3,000 pages, 3,000,000 extracted
+  characters total and 20,000 per page. Partial extraction is disclosed in the activity log and model state. Scans require a readable replacement; there is no OCR.
 - Read/search: stable 2,400-character source chunks. Citations are **chunk IDs**,
   not page numbers. Search is literal keyword matching, not web research.
 - Draft: schedule, revision notes, short-answer questions and answers.
@@ -48,7 +48,7 @@ GOOGLE_GENERATIVE_AI_API_KEY, run `python manage.py migrate`, then
 Django secret and domain settings. Apply migration 0002 before enabling this screen.
 
 ## Verification recorded for this version
-33 Django tests passed: 13 existing chat/auth/media tests, 14 agent tests and 6 upload tests.
+50 Django tests pass across chat, study, uploads and unified-chat capabilities. See UNIFIED_CHAT.md.
 A synthetic valid PDF padded to exactly 100 MiB was accepted through the real multipart
 endpoint, stored in a temporary disk file and parsed. This verifies size handling,
 not performance for every complex 100 MB PDF.
@@ -67,8 +67,7 @@ The existing launcher is carried over from the version the user reported working
 5. Show saved run isolation and explain budget/verification limits.
 Use a real Gemini run for the submission recording; do not present mocked tests as a
 live autonomous demo. A successful real-provider run and demo recording remain gates
-before claiming submission readiness. Adaptive quiz grading, multiple PDFs, OCR and
-web research are not implemented. Acceptance is decided by bootcamp evaluators.
+before claiming submission readiness. Main chat now includes quiz grading and web search; see UNIFIED_CHAT.md. Multiple simultaneous PDFs and OCR are not implemented. Acceptance is decided by bootcamp evaluators.
 
 ## Large PDF upload update
 Study Agent now sends binary multipart uploads with a percentage indicator, avoiding
@@ -79,5 +78,5 @@ The UI says MB; the exact local limit is 104,857,600 bytes (100 MiB).
 On Vercel this direct-upload path is capped at 4 MiB; 100 MB online uploads need a
 separate object-storage upload flow. No new storage service or deployment is enabled.
 Self-hosted reverse proxies must also permit the intended request size.
-The 60,000-character analysis cap is separate from file size; split long documents
+The 3,000,000-character analysis cap is separate from file size; split long documents
 into relevant sections for full coverage. OCR remains unavailable.

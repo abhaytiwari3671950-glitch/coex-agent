@@ -1,5 +1,8 @@
 """Bounded, model-directed study agent. No shell, network or arbitrary file tools."""
 import json
+import re
+import math
+from collections import Counter
 from django.conf import settings
 from google import genai
 from google.genai import types
@@ -90,6 +93,7 @@ def advance(run):
         return
     action=ask(SYSTEM, {'goal':run.goal,'filename':run.filename,'source_chunks':len(sources),
         'steps_remaining':MAX_STEPS-state.get('steps',0),'state':state,
+        'opening_excerpt':run.source[:2000],
         'recent_activity':run.trace[-6:]})
     state['steps']=state.get('steps',0)+1
     name=action.get('action'); args=action.get('args',{})
@@ -114,7 +118,7 @@ def advance(run):
             state['evidence']={str(i):sources[i-1] for i in state['seen']}
         elif name=='search':
             query=clean(args.get('query'),120)
-            ids=[i for i,t in enumerate(sources,1) if any(word.casefold() in t.casefold() for word in query.split())][:4]
+            ids=rank_chunks(sources,query)
             result={'matches':[{'id':i,'text':sources[i-1]} for i in ids]}
             state['seen']=sorted(set(state.get('seen',[])+ids))
             state['evidence']={str(i):sources[i-1] for i in state['seen']}
@@ -153,3 +157,12 @@ def advance(run):
         result={'error':str(exc)}
     state['last_result']=result
     run.trace.append({'step':state['steps'],'action':str(name)[:40],'summary':summary,'result':result})
+
+
+def rank_chunks(sources,query):
+    terms=set(re.findall(r'\w+',query.casefold()))-{'the','a','an','of','in','and','to','for','is'}
+    if not terms:return []
+    counts=[Counter(re.findall(r'\w+',text.casefold())) for text in sources]
+    weights={t:math.log(1+len(sources)/(1+sum(t in c for c in counts))) for t in terms}
+    scored=[(sum((1+math.log(c[t]))*weights[t] for t in terms if c[t]),i) for i,c in enumerate(counts,1)]
+    return [i for score,i in sorted(scored,key=lambda x:(-x[0],x[1]))[:4] if score>0]

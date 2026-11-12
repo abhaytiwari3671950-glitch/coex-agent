@@ -1,3 +1,7 @@
+# Coex unified chat preview
+
+Start with [UNIFIED_CHAT.md](UNIFIED_CHAT.md) for the current features, upgrade steps and limitations.
+
 # Study Agent preview
 
 See [STUDY_AGENT.md](STUDY_AGENT.md) for the new autonomous study workflow, demo and verification limits.

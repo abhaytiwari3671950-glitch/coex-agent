@@ -61,3 +61,6 @@ FILE_UPLOAD_HANDLERS = [
     'django.core.files.uploadhandler.TemporaryFileUploadHandler',
 ]
 DATA_UPLOAD_MAX_NUMBER_FILES = 1
+
+GEMINI_SEARCH_MODEL = os.environ.get('GEMINI_SEARCH_MODEL', 'gemini-3.5-flash')
+GEMINI_IMAGE_MODEL = os.environ.get('GEMINI_IMAGE_MODEL', 'gemini-3.1-flash-lite-image')

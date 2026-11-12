@@ -44,8 +44,8 @@ class UploadTests(TestCase):
             text=c.beginText(20,800);text.textLines(('Source information about photosynthesis. '*50+'\n')*2);c.drawText(text);c.showPage()
         c.save();result=self.upload(f.getvalue());self.assertEqual(result.status_code,201)
         run=StudyRun.objects.get(id=result.json()['id'])
-        self.assertTrue(run.state['source_limits']['truncated'])
-        self.assertEqual(run.trace[0]['action'],'source_limit')
+        self.assertFalse(run.state['source_limits']['truncated'])
+        self.assertEqual(run.state['source_limits']['pages_read'],45)
     def test_small_multipart_with_csrf(self):
         from django.test import Client
         client=Client(enforce_csrf_checks=True);client.force_login(User.objects.get(username='uploader'))

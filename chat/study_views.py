@@ -7,7 +7,8 @@ from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 from django.db.models import Q
-from .models import StudyRun
+from .models import StudyRun, Conversation, Message
+from .memory import context
 from .views import api, data, quota
 from .media import process
 from .study import advance
@@ -16,7 +17,7 @@ from .uploads import read_study_pdf
 
 def snapshot(run):
     return {'id':str(run.id),'goal':run.goal,'filename':run.filename,'status':run.status,
-            'plan':run.state.get('plan',[]),'trace':run.trace,'output':run.output,'artifact':run.artifact}
+            'conversationId':str(run.conversation_id) if run.conversation_id else None,'plan':run.state.get('plan',[]),'trace':run.trace,'output':run.output,'artifact':run.artifact}
 
 @login_required
 def page(request):
@@ -59,10 +60,17 @@ def create(request):
         return JsonResponse({'error':'Add the Gemini API key before starting the Study Agent.'},status=503)
     if not quota(f'study-runs:{request.user.pk}',5,86400):
         return JsonResponse({'error':'Daily limit of five study runs reached.'},status=429)
-    run=StudyRun.objects.create(owner=request.user,goal=goal.strip(),filename=filename[:160],source=document['text'],state={'source_limits':{key:document[key] for key in ('pages','pages_read','truncated','notice') if key in document}})
+    conversation_id=request.POST.get('conversationId') if request.content_type=='multipart/form-data' else body.get('conversationId')
+    if conversation_id:
+        try: conversation=get_object_or_404(Conversation,id=uuid.UUID(conversation_id),owner=request.user)
+        except (ValueError,TypeError):return JsonResponse({'error':'Invalid conversation.'},status=400)
+    else:conversation=Conversation.objects.create(owner=request.user,title=goal[:80])
+    run=StudyRun.objects.create(conversation=conversation,owner=request.user,goal=goal.strip(),filename=filename[:160],source=document['text'],state={'preferences':context(request.user),'source_limits':{key:document[key] for key in ('pages','pages_read','truncated','notice') if key in document}})
     if document.get('notice'):
         run.trace=[{'action':'source_limit','summary':document['notice']}]
         run.save(update_fields=['trace'])
+    Message.objects.create(conversation=conversation,role='user',text=goal,metadata={'kind':'study_request','filename':filename})
+    Message.objects.create(conversation=conversation,role='assistant',text='Study task started. Open the task to see progress.',metadata={'kind':'study','runId':str(run.id)})
     return JsonResponse(snapshot(run),status=201)
 
 @require_POST
@@ -85,5 +93,25 @@ def step(request,run_id):
         run.status='failed'
         run.trace.append({'action':'error','summary':'The model or tool could not complete this step. Start a new run or check your API configuration.'})
     saved=StudyRun.objects.filter(id=run.id,token=token).update(status=run.status,state=run.state,trace=run.trace,output=run.output,artifact=run.artifact,token=None,busy_until=None)
+    if saved and run.conversation_id:
+        task=Message.objects.filter(conversation_id=run.conversation_id,metadata__runId=str(run.id),role='assistant').first()
+        if task:
+            task.text=run.output or ('Study task: '+run.status)
+            task.save(update_fields=['text'])
     if not saved: return JsonResponse({'error':'Step lease expired. Reload the run.'},status=409)
     return JsonResponse(snapshot(run))
+
+@require_POST
+@api
+def reuse(request,run_id):
+    original=get_object_or_404(StudyRun,id=run_id,owner=request.user)
+    try:
+        goal=data(request).get('goal')
+        if not isinstance(goal,str) or not goal.strip() or len(goal)>2000:raise ValueError()
+    except (ValueError,TypeError):return JsonResponse({'error':'Enter a study goal up to 2,000 characters.'},status=400)
+    if not quota(f'study-runs:{request.user.pk}',5,86400):return JsonResponse({'error':'Daily study limit reached.'},status=429)
+    conversation=original.conversation or Conversation.objects.create(owner=request.user,title=goal[:80])
+    run=StudyRun.objects.create(owner=request.user,conversation=conversation,goal=goal,filename=original.filename,source=original.source,state={'preferences':context(request.user),'source_limits':original.state.get('source_limits',{})})
+    Message.objects.create(conversation=conversation,role='user',text=goal)
+    Message.objects.create(conversation=conversation,role='assistant',text='Study task started.',metadata={'kind':'study','runId':str(run.id)})
+    return JsonResponse(snapshot(run),status=201)
