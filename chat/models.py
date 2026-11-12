@@ -20,3 +20,18 @@ class Quota(models.Model):
     key = models.CharField(max_length=180,primary_key=True)
     count = models.PositiveIntegerField(default=0)
     expires_at = models.DateTimeField()
+
+class StudyRun(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    goal = models.TextField()
+    filename = models.CharField(max_length=160)
+    source = models.TextField()
+    status = models.CharField(max_length=20, default='running')
+    state = models.JSONField(default=dict)
+    trace = models.JSONField(default=list)
+    output = models.TextField(default='')
+    artifact = models.JSONField(null=True)
+    busy_until = models.DateTimeField(null=True)
+    token = models.UUIDField(null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
