@@ -1,3 +1,11 @@
+# Coex unified chat preview
+
+Start with [UNIFIED_CHAT.md](UNIFIED_CHAT.md) for the current features, upgrade steps and limitations.
+
+# Study Agent preview
+
+See [STUDY_AGENT.md](STUDY_AGENT.md) for the new autonomous study workflow, demo and verification limits.
+
 # coex — Python migration
 
 A Django/Python backend with a plain HTML, CSS and JavaScript browser interface. No TypeScript, Node build, Next.js or eve runtime is required by this branch.
