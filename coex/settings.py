@@ -51,3 +51,13 @@ GEMINI_MODEL = 'gemini-3.5-flash-lite'
 GOOGLE_GENERATIVE_AI_API_KEY = os.environ.get('GOOGLE_GENERATIVE_AI_API_KEY', '')
 DAILY_USER_MESSAGES = int(os.environ.get('DAILY_USER_MESSAGES','50'))
 DAILY_SITE_MESSAGES = int(os.environ.get('DAILY_SITE_MESSAGES','500'))
+
+# Local desktop accepts 100 MiB PDFs; Vercel direct requests stay below its platform cap.
+STUDY_MAX_UPLOAD_BYTES = (4 if os.environ.get('VERCEL') == '1' else 100) * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 1024 * 1024
+FILE_UPLOAD_HANDLERS = [
+    'chat.uploads.SizeLimitedUploadHandler',
+    'django.core.files.uploadhandler.MemoryFileUploadHandler',
+    'django.core.files.uploadhandler.TemporaryFileUploadHandler',
+]
+DATA_UPLOAD_MAX_NUMBER_FILES = 1

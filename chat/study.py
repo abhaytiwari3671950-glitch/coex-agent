@@ -24,7 +24,7 @@ only after verification succeeds. Export ends the run. If source cannot meet the
 ask for the missing material using clarify. Do not claim unsupported facts. Avoid
 unbounded research: only uploaded source is available. PDF supports Latin script;
 other languages still get a downloadable text pack. Use the requested study days.
-You have at most 12 actions. Never invent a tool result.'''
+If state.source_limits.truncated is true, you have only a partial document. Never claim full-document coverage; clarify if the goal requires missing material. You have at most 12 actions. Never invent a tool result.'''
 
 def ask(system, payload):
     with genai.Client(api_key=settings.GOOGLE_GENERATIVE_AI_API_KEY,

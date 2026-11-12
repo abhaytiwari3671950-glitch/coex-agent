@@ -11,6 +11,7 @@ from .models import StudyRun
 from .views import api, data, quota
 from .media import process
 from .study import advance
+from .uploads import read_study_pdf
 
 
 def snapshot(run):
@@ -19,7 +20,7 @@ def snapshot(run):
 
 @login_required
 def page(request):
-    return render(request,'study.html')
+    return render(request,'study.html',{'max_upload_mb':settings.STUDY_MAX_UPLOAD_BYTES//(1024*1024),'max_upload_bytes':settings.STUDY_MAX_UPLOAD_BYTES})
 
 @require_GET
 @api
@@ -35,17 +36,33 @@ def detail(request,run_id):
 @api
 def create(request):
     try:
-        body=data(request); goal=body.get('goal'); attachment=body.get('attachment')
-        if not isinstance(goal,str) or not goal.strip() or len(goal)>2000: raise ValueError('Enter a goal up to 2,000 characters.')
-        if not isinstance(attachment,dict) or attachment.get('mediaType')!='application/pdf': raise ValueError('Upload a PDF for this study goal.')
-        document=process({'action':'inspect','data':attachment.get('data'),'mediaType':'application/pdf'})
+        if request.content_type == 'multipart/form-data':
+            goal=request.POST.get('goal')
+            if getattr(request,'coex_upload_too_large',False):
+                return JsonResponse({'error':f'PDF exceeds the {settings.STUDY_MAX_UPLOAD_BYTES//(1024*1024)} MB upload limit.'},status=413)
+            if not isinstance(goal,str) or not goal.strip() or len(goal)>2000:
+                raise ValueError('Enter a goal up to 2,000 characters.')
+            upload=request.FILES.get('file')
+            if upload is None: raise ValueError('Upload one PDF for this study goal.')
+            filename=upload.name
+            document=read_study_pdf(upload)
+        else:
+            # Compatibility for existing small-file clients; never accept 100 MB base64 JSON.
+            body=data(request); goal=body.get('goal'); attachment=body.get('attachment')
+            if not isinstance(goal,str) or not goal.strip() or len(goal)>2000: raise ValueError('Enter a goal up to 2,000 characters.')
+            if not isinstance(attachment,dict) or attachment.get('mediaType')!='application/pdf': raise ValueError('Upload a PDF for this study goal.')
+            document=process({'action':'inspect','data':attachment.get('data'),'mediaType':'application/pdf'})
+            filename=str(attachment.get('name','source.pdf'))
     except (ValueError,TypeError) as exc:
         return JsonResponse({'error':str(exc)},status=400)
     if not settings.GOOGLE_GENERATIVE_AI_API_KEY:
         return JsonResponse({'error':'Add the Gemini API key before starting the Study Agent.'},status=503)
     if not quota(f'study-runs:{request.user.pk}',5,86400):
         return JsonResponse({'error':'Daily limit of five study runs reached.'},status=429)
-    run=StudyRun.objects.create(owner=request.user,goal=goal.strip(),filename=str(attachment.get('name','source.pdf'))[:160],source=document['text'])
+    run=StudyRun.objects.create(owner=request.user,goal=goal.strip(),filename=filename[:160],source=document['text'],state={'source_limits':{key:document[key] for key in ('pages','pages_read','truncated','notice') if key in document}})
+    if document.get('notice'):
+        run.trace=[{'action':'source_limit','summary':document['notice']}]
+        run.save(update_fields=['trace'])
     return JsonResponse(snapshot(run),status=201)
 
 @require_POST

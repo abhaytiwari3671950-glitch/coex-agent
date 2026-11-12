@@ -15,7 +15,23 @@ async function history(){const value=await request('/api/study/history');$('runs
 async function execute(){paused=false;busy(true);$('error').textContent='';try{while(!paused&&current.status==='running'){show(await request('/api/study/'+active+'/step',{}));}if(paused&&current.status==='running')$('status').textContent='Paused — you can continue this run';}catch(e){$('error').textContent=e.message;}finally{busy(false);history().catch(e=>{$('error').textContent=e.message;});}}
 $('pause').onclick=()=>{paused=true;$('pause').textContent='Pausing after current step…';};
 $('resume').onclick=()=>{$('pause').textContent='Pause after this step';execute();};
-$('study-form').onsubmit=async event=>{event.preventDefault();if(working)return;const file=$('source').files[0];if(!file||file.size>2*1024*1024){$('error').textContent='Choose a PDF up to 2 MB.';return;}busy(true);$('error').textContent='';try{const encoded=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result.split(',')[1]);r.onerror=()=>reject(Error('File could not be read.'));r.readAsDataURL(file);});show(await request('/api/study',{goal:$('goal').value,attachment:{name:file.name,mediaType:'application/pdf',data:encoded}}));$('pause').textContent='Pause after this step';await execute();}catch(e){$('error').textContent=e.message;busy(false);}};
+function uploadPDF(file,goal){return new Promise((resolve,reject)=>{
+ const xhr=new XMLHttpRequest();const form=new FormData();form.append('goal',goal);form.append('file',file);
+ xhr.open('POST','/api/study');xhr.setRequestHeader('X-CSRFToken',document.querySelector('[name=csrfmiddlewaretoken]').value);
+ xhr.timeout=300000;
+ xhr.upload.onprogress=event=>{if(event.lengthComputable){const percent=Math.round(event.loaded/event.total*100);$('status').textContent=percent===100?'Reading PDF…':'Uploading PDF · '+percent+'%';}};
+ xhr.onload=()=>{let value;try{value=JSON.parse(xhr.responseText);}catch{reject(Error('Upload failed. The server may have a smaller upload limit.'));return;}if(xhr.status>=200&&xhr.status<300)resolve(value);else reject(Error(value.error||'Upload failed.'));};
+ xhr.onerror=()=>reject(Error('Upload interrupted. Check the connection and retry.'));
+ xhr.ontimeout=()=>reject(Error('Upload timed out. Try a smaller PDF or retry.'));
+ xhr.send(form);
+});}
+$('study-form').onsubmit=async event=>{event.preventDefault();if(working)return;
+ const file=$('source').files[0];const maximum=Number($('study-form').dataset.maxUpload);
+ if(!file||!file.size||file.size>maximum){$('error').textContent='Choose a nonempty PDF up to '+Math.floor(maximum/1024/1024)+' MB.';return;}
+ busy(true);$('pause').hidden=true;$('error').textContent='';$('status').textContent='Uploading PDF…';
+ try{show(await uploadPDF(file,$('goal').value));$('pause').textContent='Pause after this step';await execute();}
+ catch(e){$('error').textContent=e.message;$('status').textContent='Upload failed';busy(false);}
+};
 function download(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 $('download').onclick=()=>{if(current?.artifact)download(new Blob([Uint8Array.from(atob(current.artifact.data),c=>c.charCodeAt(0))],{type:'application/pdf'}),'Coex_Study_Pack.pdf');};
 $('text-download').onclick=()=>{if(current?.output)download(new Blob([current.output],{type:'text/plain;charset=utf-8'}),'Coex_Study_Pack.txt');};
